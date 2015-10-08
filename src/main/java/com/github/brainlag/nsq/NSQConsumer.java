@@ -13,10 +13,7 @@ import org.apache.logging.log4j.LogManager;
 
 import java.io.IOException;
 import java.util.*;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class NSQConsumer {
@@ -27,8 +24,6 @@ public class NSQConsumer {
     private final NSQMessageCallback callback;
     private final NSQErrorCallback errorCallback;
     private final NSQConfig config;
-    private final Timer timer = new Timer();
-    private Timer timeout = new Timer();
     private volatile long nextTimeout = 0;
     private final Map<ServerAddress, Connection> connections = Maps.newHashMap();
     private final AtomicLong totalMessages = new AtomicLong(0l);
@@ -36,7 +31,9 @@ public class NSQConsumer {
     private boolean started = false;
     private int messagesPerBatch = 200;
     private long lookupPeriod = 60 * 1000; // how often to recheck for new nodes (and clean up non responsive nodes)
+    private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ExecutorService executor = Executors.newCachedThreadPool();
+    private Optional<ScheduledFuture<?>> timeout = Optional.empty();
 
     public NSQConsumer(final NSQLookup lookup, final String topic, final String channel, final NSQMessageCallback callback) {
         this(lookup, topic, channel, callback, new NSQConfig());
@@ -58,17 +55,19 @@ public class NSQConsumer {
 
     }
 
-    public NSQConsumer start() {
+    public NSQConsumer start() throws IOException {
         if (!started) {
             started = true;
             //connect once otherwise we might have to wait one lookupPeriod
             connect();
-            timer.schedule(new TimerTask() {
-                @Override
-                public void run() {
+            scheduler.scheduleAtFixedRate(() -> {
+                try {
                     connect();
+                } catch (Throwable t) {
+                    //dangerous but do nothing for now
+                    //The connect outside of this loop will throw an exception
                 }
-            }, lookupPeriod, lookupPeriod);
+            }, lookupPeriod, lookupPeriod, TimeUnit.MILLISECONDS);
         }
         return this;
     }
@@ -114,16 +113,14 @@ public class NSQConsumer {
     private void updateTimeout(final NSQMessage message, long change) {
         rdy(message, 0);
         LogManager.getLogger(this).trace("RDY 0! Halt Flow.");
-        timeout.cancel();
-        Date newTimeout = caculateTimeoutDate(change);
+        if (timeout.isPresent()) {
+            timeout.get().cancel(true);
+        }
+        Date newTimeout = calculateTimeoutDate(change);
         if (newTimeout != null) {
-            timeout = new Timer();
-            timeout.schedule(new TimerTask() {
-                @Override
-                public void run() {
-                    rdy(message, 1); // test the waters
-                }
-            }, newTimeout);
+            timeout = Optional.of(scheduler.schedule(() -> {
+                rdy(message, 1); // test the waters
+            }, 0, TimeUnit.MILLISECONDS));
         }
     }
 
@@ -131,7 +128,7 @@ public class NSQConsumer {
         message.getConnection().command(NSQCommand.instance("RDY " + size));
     }
 
-    private Date caculateTimeoutDate(final long i) {
+    private Date calculateTimeoutDate(final long i) {
         if (System.currentTimeMillis() - nextTimeout + i > 50) {
             nextTimeout += i;
             return new Date();
@@ -142,7 +139,7 @@ public class NSQConsumer {
     }
 
     public void shutdown() {
-        this.timer.cancel();
+        scheduler.shutdown();
         cleanClose();
     }
 
@@ -178,7 +175,7 @@ public class NSQConsumer {
     }
 
 
-    private void connect() {
+    private void connect() throws IOException {
         for (final Iterator<Map.Entry<ServerAddress, Connection>> it = connections.entrySet().iterator(); it.hasNext(); ) {
             if (!it.next().getValue().isConnected()) {
                 it.remove();
@@ -187,6 +184,11 @@ public class NSQConsumer {
 
         final Set<ServerAddress> newAddresses = lookupAddresses();
         final Set<ServerAddress> oldAddresses = connections.keySet();
+
+        LogManager.getLogger(this).warn("Addresses NSQ connected to: " + newAddresses);
+        if (newAddresses.isEmpty()) {
+            throw new IOException("No NSQLookup server connections");
+        }
 
         for (final ServerAddress server : Sets.difference(oldAddresses, newAddresses)) {
             connections.get(server).close();
@@ -222,5 +224,32 @@ public class NSQConsumer {
         } catch (final IOException e) {
             throw Throwables.propagate(e);
         }
+    }
+
+    /**
+     * This method allows for a runnable task to be scheduled using the NSQConsumer's scheduler executor
+     * This is intended for calling a periodic method in a NSQMessageCallback for batching messages
+     * without needing state in the callback itself
+     *
+     * @param task The Runnable task
+     * @param delay Delay in milliseconds
+     * @param period Period of time between scheduled runs
+     * @param unit TimeUnit for delay and period times
+     * @return ScheduledFuture - useful for cancelling scheduled task
+     */
+    public ScheduledFuture scheduleRun(Runnable task, int delay, int period, TimeUnit unit) {
+        return scheduler.scheduleAtFixedRate(task, delay, period, unit);
+    }
+
+    /**
+     * Executor where scheduled callback methods are sent to
+     * @param scheduler scheduler to use (defaults to SingleThreadScheduledExecutor)
+     * @return this NSQConsumer
+     */
+    public NSQConsumer setScheduledExecutor(final ScheduledExecutorService scheduler) {
+        if (!started) {
+            this.scheduler = scheduler;
+        }
+        return this;
     }
 }
