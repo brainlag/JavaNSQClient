@@ -6,7 +6,7 @@
 
   <groupId>com.github.brainlag</groupId>
   <artifactId>nsq-client</artifactId>
-  <version>1.0.0.RC2</version>
+  <version>1.0.0.RC3</version>
 
   <name>JavaNSQClient</name>
   <description>Fast Java client for NSQ.</description>
@@ -172,8 +172,8 @@
 
     <dependency>
       <groupId>io.netty</groupId>
-      <artifactId>netty-tcnative</artifactId>
-      <version>1.1.33.Fork11</version>
+      <artifactId>netty-tcnative-boringssl-static</artifactId>
+      <version>1.1.33.Fork16</version>
       <classifier>${os.detected.classifier}</classifier>
       <scope>test</scope>
     </dependency>

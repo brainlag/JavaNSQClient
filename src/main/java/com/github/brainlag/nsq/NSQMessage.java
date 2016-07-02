@@ -24,6 +24,14 @@ public class NSQMessage {
         }
     }
 
+    public void touch() {
+        try {
+            connection.command(NSQCommand.instance("TOUCH " + new String(id, "ascii")));
+        } catch (UnsupportedEncodingException e) {
+            LogManager.getLogger(this).error("ASCII charset is not supported by your JVM?", e);
+        }
+    }
+
     /**
      * indicates a problem with processing, puts it back on the queue.
      */
