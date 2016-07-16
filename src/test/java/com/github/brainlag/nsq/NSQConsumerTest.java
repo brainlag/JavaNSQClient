@@ -16,7 +16,7 @@ public class NSQConsumerTest {
     //duration to wait before auto-requeing a message setting in nsqd, defined with -msg-timeout:
     //Set your timeout -msg-timeout="5s" command line when starting nsqd or changed this constant
     //to the default of 60000.
-    private static final long NSQ_MSG_TIMEOUT = 5000;
+    private static final long NSQ_MSG_TIMEOUT = 60000;
 
     @Test
     public void testLongRunningConsumer() throws NSQException, TimeoutException, InterruptedException {
