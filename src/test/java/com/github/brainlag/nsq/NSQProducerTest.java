@@ -65,11 +65,11 @@ public class NSQProducerTest {
     public void testProduceOneMsgSnappy() throws NSQException, TimeoutException, InterruptedException {
         AtomicInteger counter = new AtomicInteger(0);
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQProducer producer = new NSQProducer();
         producer.setConfig(getSnappyConfig());
-        producer.addAddress("localhost", 4150);
+        producer.addAddress(Nsq.getNsqdHost(), 4150);
         producer.start();
         String msg = randomString();
         producer.produce("test3", msg.getBytes());
@@ -93,11 +93,11 @@ public class NSQProducerTest {
         System.setProperty("io.netty.noJdkZlibDecoder", "false");
         AtomicInteger counter = new AtomicInteger(0);
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQProducer producer = new NSQProducer();
         producer.setConfig(getDeflateConfig());
-        producer.addAddress("localhost", 4150);
+        producer.addAddress(Nsq.getNsqdHost(), 4150);
         producer.start();
         String msg = randomString();
         producer.produce("test3", msg.getBytes());
@@ -120,11 +120,11 @@ public class NSQProducerTest {
     public void testProduceOneMsgSsl() throws InterruptedException, NSQException, TimeoutException, SSLException {
         AtomicInteger counter = new AtomicInteger(0);
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQProducer producer = new NSQProducer();
         producer.setConfig(getSslConfig());
-        producer.addAddress("localhost", 4150);
+        producer.addAddress(Nsq.getNsqdHost(), 4150);
         producer.start();
         String msg = randomString();
         producer.produce("test3", msg.getBytes());
@@ -147,11 +147,11 @@ public class NSQProducerTest {
     public void testProduceOneMsgSslAndSnappy() throws InterruptedException, NSQException, TimeoutException, SSLException {
         AtomicInteger counter = new AtomicInteger(0);
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQProducer producer = new NSQProducer();
         producer.setConfig(getSslAndSnappyConfig());
-        producer.addAddress("localhost", 4150);
+        producer.addAddress(Nsq.getNsqdHost(), 4150);
         producer.start();
         String msg = randomString();
         producer.produce("test3", msg.getBytes());
@@ -175,11 +175,11 @@ public class NSQProducerTest {
         System.setProperty("io.netty.noJdkZlibDecoder", "false");
         AtomicInteger counter = new AtomicInteger(0);
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQProducer producer = new NSQProducer();
         producer.setConfig(getSslAndDeflateConfig());
-        producer.addAddress("localhost", 4150);
+        producer.addAddress(Nsq.getNsqdHost(), 4150);
         producer.start();
         String msg = randomString();
         producer.produce("test3", msg.getBytes());
@@ -203,7 +203,7 @@ public class NSQProducerTest {
     public void testProduceMoreMsg() throws NSQException, TimeoutException, InterruptedException {
         AtomicInteger counter = new AtomicInteger(0);
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQConsumer consumer = new NSQConsumer(lookup, "test3", "testconsumer", (message) -> {
             LogManager.getLogger(this).info("Processing message: " + new String(message.getMessage()));
@@ -213,7 +213,7 @@ public class NSQProducerTest {
         consumer.start();
 
         NSQProducer producer = new NSQProducer();
-        producer.addAddress("localhost", 4150);
+        producer.addAddress(Nsq.getNsqdHost(), 4150);
         producer.start();
         for (int i = 0; i < 1000; i++) {
             String msg = randomString();
@@ -232,7 +232,7 @@ public class NSQProducerTest {
     public void testParallelProducer() throws NSQException, TimeoutException, InterruptedException {
         AtomicInteger counter = new AtomicInteger(0);
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQConsumer consumer = new NSQConsumer(lookup, "test3", "testconsumer", (message) -> {
             LogManager.getLogger(this).info("Processing message: " + new String(message.getMessage()));
@@ -242,7 +242,7 @@ public class NSQProducerTest {
         consumer.start();
 
         NSQProducer producer = new NSQProducer();
-        producer.addAddress("localhost", 4150);
+        producer.addAddress(Nsq.getNsqdHost(), 4150);
         producer.start();
         for (int n = 0; n < 5; n++) {
             new Thread(() -> {
@@ -268,7 +268,7 @@ public class NSQProducerTest {
     public void testMultiMessage() throws NSQException, TimeoutException, InterruptedException {
         AtomicInteger counter = new AtomicInteger(0);
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQConsumer consumer = new NSQConsumer(lookup, "test3", "testconsumer", (message) -> {
             LogManager.getLogger(this).info("Processing message: " + new String(message.getMessage()));
@@ -278,7 +278,7 @@ public class NSQProducerTest {
         consumer.start();
 
         NSQProducer producer = new NSQProducer();
-        producer.addAddress("localhost", 4150);
+        producer.addAddress(Nsq.getNsqdHost(), 4150);
         producer.start();
         List<byte[]> messages = Lists.newArrayList();
         for (int i = 0; i < 50; i++) {
@@ -298,7 +298,7 @@ public class NSQProducerTest {
     public void testBackoff() throws InterruptedException, NSQException, TimeoutException {
         AtomicInteger counter = new AtomicInteger(0);
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQConsumer consumer = new NSQConsumer(lookup, "test3", "testconsumer", (message) -> {
             LogManager.getLogger(this).info("Processing message: " + new String(message.getMessage()));
@@ -313,7 +313,7 @@ public class NSQProducerTest {
         consumer.start();
 
         NSQProducer producer = new NSQProducer();
-        producer.addAddress("localhost", 4150);
+        producer.addAddress(Nsq.getNsqdHost(), 4150);
         producer.start();
         for (int i = 0; i < 20; i++) {
             String msg = randomString();
@@ -332,7 +332,7 @@ public class NSQProducerTest {
     public void testScheduledCallback() throws NSQException, TimeoutException, InterruptedException {
         AtomicInteger counter = new AtomicInteger(0);
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQConsumer consumer = new NSQConsumer(lookup, "test3", "testconsumer", (message) -> {});
         consumer.scheduleRun(() -> counter.incrementAndGet(), 1000, 1000, TimeUnit.MILLISECONDS);
@@ -346,11 +346,11 @@ public class NSQProducerTest {
     @Test
     public void testEphemeralTopic() throws InterruptedException, NSQException, TimeoutException {
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQProducer producer = new NSQProducer();
         producer.setConfig(getDeflateConfig());
-        producer.addAddress("localhost", 4150);
+        producer.addAddress(Nsq.getNsqdHost(), 4150);
         producer.start();
         String msg = randomString();
         producer.produce("testephem#ephemeral", msg.getBytes());

@@ -22,7 +22,7 @@ public class NSQConsumerTest {
     public void testLongRunningConsumer() throws NSQException, TimeoutException, InterruptedException {
         AtomicInteger counter = new AtomicInteger(0);
         NSQLookup lookup = new DefaultNSQLookup();
-        lookup.addLookupAddress("localhost", 4161);
+        lookup.addLookupAddress(Nsq.getNsqLookupdHost(), 4161);
 
         NSQConsumer consumer = new NSQConsumer(lookup, "test1", "testconsumer", (message) -> {
             LogManager.getLogger(this).info("Processing message: " + new String(message.getMessage()));
@@ -43,7 +43,7 @@ public class NSQConsumerTest {
         consumer.start();
 
         NSQProducer producer = new NSQProducer();
-        producer.addAddress("localhost", 4150);
+        producer.addAddress(Nsq.getNsqdHost(), 4150);
         producer.start();
         String msg = "test-one-message";
         producer.produce("test1", msg.getBytes());
@@ -53,8 +53,6 @@ public class NSQConsumerTest {
         assertTrue(counter.get() == 1);
         consumer.shutdown();
     }
-
-
 
 
 }
