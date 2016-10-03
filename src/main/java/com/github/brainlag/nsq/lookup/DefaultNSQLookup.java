@@ -1,18 +1,24 @@
 package com.github.brainlag.nsq.lookup;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.github.brainlag.nsq.ServerAddress;
-import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
-import org.apache.logging.log4j.LogManager;
-
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.HashSet;
 import java.util.Set;
+
+import lombok.val;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.brainlag.nsq.ServerAddress;
+import com.google.common.base.Charsets;
+
 public class DefaultNSQLookup implements NSQLookup {
-    Set<String> addresses = Sets.newHashSet();
+    private static final Logger LOG = LoggerFactory.getLogger(DefaultNSQLookup.class);
+
+    private final Set<String> addresses = new HashSet<>();
+    private final ObjectMapper mapper = new ObjectMapper();
 
     @Override
     public void addLookupAddress(String addr, int port) {
@@ -25,32 +31,27 @@ public class DefaultNSQLookup implements NSQLookup {
 
     @Override
     public Set<ServerAddress> lookup(String topic) {
-        Set<ServerAddress> addresses = Sets.newHashSet();
+        val addresses = new HashSet<ServerAddress>();
 
-        for (String addr : getLookupAddresses()) {
+        for (val addr : this.addresses) {
             try {
-                ObjectMapper mapper = new ObjectMapper();
-                String topicEncoded = URLEncoder.encode(topic, Charsets.UTF_8.name());
-                JsonNode jsonNode = mapper.readTree(new URL(addr + "/lookup?topic=" + topicEncoded));
-                LogManager.getLogger(this).debug("Server connection information: " + jsonNode.toString());
-                JsonNode producers = jsonNode.get("data").get("producers");
-                for (JsonNode node : producers) {
-                    String host = node.get("broadcast_address").asText();
-                    ServerAddress address = new ServerAddress(host, node.get("tcp_port").asInt());
+                val topicEncoded = URLEncoder.encode(topic, Charsets.UTF_8.name());
+                val jsonNode = mapper.readTree(new URL(addr + "/lookup?topic=" + topicEncoded));
+                LOG.debug("Server connection information: {}", jsonNode.toString());
+                val producers = jsonNode.get("data").get("producers");
+                for (val node : producers) {
+                    val host = node.get("broadcast_address").asText();
+                    val address = new ServerAddress(host, node.get("tcp_port").asInt());
                     addresses.add(address);
                 }
             } catch (IOException e) {
-                LogManager.getLogger(this).warn("Unable to connect to address {}", addr);
-                LogManager.getLogger(this).debug(e.getMessage());
+                LOG.warn("Unable to connect to address {}", addr);
+                LOG.debug("Failed to lookup topic.", e);
             }
         }
         if (addresses.isEmpty()) {
-            LogManager.getLogger(this).warn("Unable to connect to any NSQ Lookup servers, servers tried: " + this.addresses.toString());
+            LOG.warn("Unable to connect to any NSQ Lookup servers, servers tried: {}", this.addresses);
         }
-        return addresses;
-    }
-
-    public Set<String> getLookupAddresses() {
         return addresses;
     }
 }

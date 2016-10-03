@@ -5,5 +5,5 @@ import com.github.brainlag.nsq.NSQMessage;
 @FunctionalInterface
 public interface NSQMessageCallback {
 
-	public void message(NSQMessage message);
+    void message(NSQMessage message);
 }

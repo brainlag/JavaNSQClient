@@ -1,8 +1,7 @@
 package com.github.brainlag.nsq.netty;
 
-import com.github.brainlag.nsq.Connection;
-import com.github.brainlag.nsq.frames.NSQFrame;
-import com.github.brainlag.nsq.frames.ResponseFrame;
+import javax.net.ssl.SSLEngine;
+
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
 import io.netty.channel.SimpleChannelInboundHandler;
@@ -12,12 +11,18 @@ import io.netty.handler.codec.compression.SnappyFramedEncoder;
 import io.netty.handler.codec.compression.ZlibCodecFactory;
 import io.netty.handler.codec.compression.ZlibWrapper;
 import io.netty.handler.ssl.SslHandler;
-import org.apache.logging.log4j.LogManager;
+import lombok.extern.slf4j.Slf4j;
+import lombok.val;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import javax.net.ssl.SSLEngine;
+import com.github.brainlag.nsq.NSQConnection;
+import com.github.brainlag.nsq.frames.NSQFrame;
+import com.github.brainlag.nsq.frames.ResponseFrame;
+import com.google.common.base.Charsets;
 
+@Slf4j
 public class NSQFeatureDetectionHandler extends SimpleChannelInboundHandler<NSQFrame> {
-
     private boolean ssl;
     private boolean compression;
     private boolean snappy;
@@ -26,12 +31,15 @@ public class NSQFeatureDetectionHandler extends SimpleChannelInboundHandler<NSQF
 
     @Override
     protected void channelRead0(final ChannelHandlerContext ctx, final NSQFrame msg) throws Exception {
-        LogManager.getLogger(this).info("IdentifyResponse: " + new String(msg.getData()));
+        if (log.isTraceEnabled()) {
+            log.trace("IdentifyResponse: {}", new String(msg.getData(), Charsets.US_ASCII));
+        }
+
         boolean reinstallDefaultDecoder = true;
         if (msg instanceof ResponseFrame) {
             ResponseFrame response = (ResponseFrame) msg;
             ChannelPipeline pipeline = ctx.channel().pipeline();
-            final Connection con = ctx.channel().attr(Connection.STATE).get();
+            val con = ctx.channel().attr(NSQConnection.STATE).get();
             parseIdentify(response.getMessage());
 
             if (response.getMessage().equals("OK")) {
@@ -43,7 +51,7 @@ public class NSQFeatureDetectionHandler extends SimpleChannelInboundHandler<NSQF
                     reinstallDefaultDecoder = installSnappyDecoder(pipeline);
                 }
                 if (deflate) {
-                    reinstallDefaultDecoder = installDeflateDecoder(pipeline, con);
+                    reinstallDefaultDecoder = installDeflateDecoder(pipeline);
                 }
                 eject(reinstallDefaultDecoder, pipeline);
                 if (ssl) {
@@ -52,7 +60,7 @@ public class NSQFeatureDetectionHandler extends SimpleChannelInboundHandler<NSQF
                 return;
             }
             if (ssl) {
-                LogManager.getLogger(this).info("Adding SSL to pipline");
+                log.info("Adding SSL to pipline");
                 SSLEngine sslEngine = con.getConfig().getSslContext().newEngine(ctx.channel().alloc());
                 sslEngine.setUseClientMode(true);
                 SslHandler sslHandler = new SslHandler(sslEngine, false);
@@ -62,8 +70,8 @@ public class NSQFeatureDetectionHandler extends SimpleChannelInboundHandler<NSQF
                     pipeline.addBefore("NSQEncoder", "SnappyEncoder", new SnappyFramedEncoder());
                 }
                 if (deflate) {
-                    pipeline.addBefore("NSQEncoder", "DeflateEncoder", ZlibCodecFactory.newZlibEncoder(ZlibWrapper.NONE,
-                            con.getConfig().getDeflateLevel()));
+                    pipeline.addBefore("NSQEncoder", "DeflateEncoder",
+                            ZlibCodecFactory.newZlibEncoder(ZlibWrapper.NONE,con.getConfig().getDeflateLevel()));
                 }
             }
             if (!ssl && snappy) {
@@ -71,9 +79,9 @@ public class NSQFeatureDetectionHandler extends SimpleChannelInboundHandler<NSQF
                 reinstallDefaultDecoder = installSnappyDecoder(pipeline);
             }
             if (!ssl && deflate) {
-                pipeline.addBefore("NSQEncoder", "DeflateEncoder", ZlibCodecFactory.newZlibEncoder(ZlibWrapper.NONE,
-                        con.getConfig().getDeflateLevel()));
-                reinstallDefaultDecoder = installDeflateDecoder(pipeline, con);
+                pipeline.addBefore("NSQEncoder", "DeflateEncoder",
+                        ZlibCodecFactory.newZlibEncoder(ZlibWrapper.NONE, con.getConfig().getDeflateLevel()));
+                reinstallDefaultDecoder = installDeflateDecoder(pipeline);
             }
             if (response.getMessage().contains("version") && finished) {
                 eject(reinstallDefaultDecoder, pipeline);
@@ -86,22 +94,22 @@ public class NSQFeatureDetectionHandler extends SimpleChannelInboundHandler<NSQF
         // ok we read only the the first message to set up the pipline, ejecting now!
         pipeline.remove(this);
         if (reinstallDefaultDecoder) {
-            LogManager.getLogger(this).info("reinstall LengthFieldBasedFrameDecoder");
+            log.info("reinstall LengthFieldBasedFrameDecoder");
             pipeline.replace("LengthFieldBasedFrameDecoder", "LengthFieldBasedFrameDecoder",
                     new LengthFieldBasedFrameDecoder(Integer.MAX_VALUE, 0, Integer.BYTES));
         }
     }
 
-    private boolean installDeflateDecoder(final ChannelPipeline pipeline, final Connection con) {
+    private boolean installDeflateDecoder(final ChannelPipeline pipeline) {
         finished = true;
-        LogManager.getLogger(this).info("Adding deflate to pipline");
+        log.info("Adding deflate to pipeline");
         pipeline.replace("LengthFieldBasedFrameDecoder", "DeflateDecoder", ZlibCodecFactory.newZlibDecoder(ZlibWrapper.NONE));
         return false;
     }
 
     private boolean installSnappyDecoder(final ChannelPipeline pipeline) {
         finished = true;
-        LogManager.getLogger(this).info("Adding snappy to pipline");
+        log.info("Adding snappy to pipeline");
         pipeline.replace("LengthFieldBasedFrameDecoder", "SnappyDecoder", new SnappyFramedDecoder());
         return false;
     }

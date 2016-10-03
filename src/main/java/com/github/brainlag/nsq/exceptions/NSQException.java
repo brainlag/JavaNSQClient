@@ -2,7 +2,7 @@ package com.github.brainlag.nsq.exceptions;
 
 import com.github.brainlag.nsq.frames.ErrorFrame;
 
-public class NSQException extends Exception {
+public class NSQException extends RuntimeException {
 
     public NSQException(String message) {
         super(message);

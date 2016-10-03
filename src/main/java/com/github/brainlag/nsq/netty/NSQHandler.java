@@ -1,46 +1,51 @@
 package com.github.brainlag.nsq.netty;
 
-import com.github.brainlag.nsq.Connection;
-import com.github.brainlag.nsq.frames.NSQFrame;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.SimpleChannelInboundHandler;
-import org.apache.logging.log4j.LogManager;
+import lombok.val;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.github.brainlag.nsq.frames.NSQFrame;
+
+import static com.github.brainlag.nsq.AbstractNSQConnection.STATE;
 
 
 public class NSQHandler extends SimpleChannelInboundHandler<NSQFrame> {
+    private static final Logger LOG = LoggerFactory.getLogger(NSQHandler.class);
 
     @Override
     public void channelInactive(ChannelHandlerContext ctx) throws Exception {
         super.channelInactive(ctx);
-        Connection connection = ctx.channel().attr(Connection.STATE).get();
-        if(connection != null) {
-            LogManager.getLogger(this).info("Channel disconnected! " + connection);
+        val con = ctx.channel().attr(STATE).get();
+        if (con != null) {
+            LOG.info("Channel disconnected! {}", con);
         } else {
-            LogManager.getLogger(this).error("No connection set for : " + ctx.channel());
+            LOG.error("No connection set for {}", ctx.channel());
         }
     }
 
     @Override
     public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
         super.exceptionCaught(ctx, cause);
-        LogManager.getLogger(this).error("NSQHandler exception caught", cause);
+        LOG.error("NSQHandler exception caught", cause);
 
-		ctx.channel().close();
-		Connection con = ctx.channel().attr(Connection.STATE).get();
-		if (con != null) {
+        ctx.channel().close();
+        val con = ctx.channel().attr(STATE).get();
+        if (con != null) {
             con.close();
         } else {
-			LogManager.getLogger(this).warn("No connection set for : " + ctx.channel());
-		}
-	}
+            LOG.warn("No connection set for {}", ctx.channel());
+        }
+    }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, NSQFrame msg) throws Exception {
-        final Connection con = ctx.channel().attr(Connection.STATE).get();
+        val con = ctx.channel().attr(STATE).get();
         if (con != null) {
             ctx.channel().eventLoop().execute(() -> con.incoming(msg));
         } else {
-            LogManager.getLogger(this).warn("No connection set for : " + ctx.channel());
+            LOG.warn("No connection set for ", ctx.channel());
         }
     }
 }

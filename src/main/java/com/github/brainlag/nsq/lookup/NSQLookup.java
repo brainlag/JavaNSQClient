@@ -1,8 +1,8 @@
 package com.github.brainlag.nsq.lookup;
 
-import com.github.brainlag.nsq.ServerAddress;
-
 import java.util.Set;
+
+import com.github.brainlag.nsq.ServerAddress;
 
 public interface NSQLookup {
     Set<ServerAddress> lookup(String topic);

@@ -1,81 +1,45 @@
 package com.github.brainlag.nsq;
 
-import org.apache.logging.log4j.LogManager;
-
-import java.io.UnsupportedEncodingException;
 import java.util.Date;
 
-public class NSQMessage {
+import lombok.Builder;
 
-    private byte[] id;
-    private int attempts;
-    private Date timestamp;
-    private byte[] message;
-    private Connection connection;
+import static com.google.common.base.Charsets.US_ASCII;
+
+@Builder
+public class NSQMessage {
+    byte[] id;
+    byte[] message;
+    final Date timestamp;
+
+    private final AbstractNSQConnection connection;
 
     /**
      * Finished processing this message, let nsq know so it doesnt get reprocessed.
      */
     public void finished() {
-        try {
-            connection.command(NSQCommand.instance("FIN " + new String(id, "ascii")));
-        } catch (UnsupportedEncodingException e) {
-            LogManager.getLogger(this).error("ASCII charset is not supported by your JVM?", e);
-        }
+        this.connection.command(NSQCommand.instance("FIN " + new String(id, US_ASCII)));
     }
 
     /**
      * indicates a problem with processing, puts it back on the queue.
      */
     public void requeue(int timeoutMillis) {
-        try {
-            connection.command(NSQCommand.instance("REQ " + new String(id, "ascii") + " " + timeoutMillis));
-        } catch (UnsupportedEncodingException e) {
-            LogManager.getLogger(this).error("ASCII charset is not supported by your JVM?", e);
-        }
+        this.connection.command(NSQCommand.instance("REQ " + new String(id, US_ASCII) + " " + timeoutMillis));
     }
 
+    /**
+     * Default re-queue.
+     */
     public void requeue() {
         requeue(0);
     }
 
-    public void setConnection(Connection connection) {
-        this.connection = connection;
+    /**
+     * Issue the RDY command for more messages.
+     */
+    public void rdy(int size) {
+        this.connection.command(NSQCommand.instance("RDY " + size));
     }
 
-    protected Connection getConnection() {
-        return connection;
-    }
-
-    public byte[] getId() {
-        return id;
-    }
-
-    public void setId(byte[] id) {
-        this.id = id;
-    }
-
-    public int getAttempts() {
-        return attempts;
-    }
-
-    public void setAttempts(int attempts) {
-        this.attempts = attempts;
-    }
-
-    public Date getTimestamp() {
-        return timestamp;
-    }
-
-    public void setTimestamp(Date timestamp) {
-        this.timestamp = timestamp;
-    }
-
-    public byte[] getMessage() {
-        return message;
-    }
-
-    public void setMessage(byte[] message) {
-        this.message = message;
-    }
 }

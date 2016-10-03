@@ -1,5 +1,15 @@
 package com.github.brainlag.nsq;
 
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Set;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeoutException;
+
+import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
+import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
+
 import com.github.brainlag.nsq.exceptions.BadMessageException;
 import com.github.brainlag.nsq.exceptions.BadTopicException;
 import com.github.brainlag.nsq.exceptions.NSQException;
@@ -8,15 +18,6 @@ import com.github.brainlag.nsq.frames.ErrorFrame;
 import com.github.brainlag.nsq.frames.NSQFrame;
 import com.github.brainlag.nsq.pool.ConnectionPoolFactory;
 import com.google.common.collect.Sets;
-import org.apache.commons.pool2.impl.GenericKeyedObjectPool;
-import org.apache.commons.pool2.impl.GenericKeyedObjectPoolConfig;
-
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeoutException;
 
 public class NSQProducer {
     private Set<ServerAddress> addresses = Sets.newConcurrentHashSet();
@@ -24,7 +25,7 @@ public class NSQProducer {
     private volatile boolean started = false;
     private ExecutorService executor = Executors.newCachedThreadPool();
     private GenericKeyedObjectPoolConfig poolConfig = null;
-    private GenericKeyedObjectPool<ServerAddress, Connection> pool;
+    private GenericKeyedObjectPool<ServerAddress, NSQConnection> pool;
     private NSQConfig config = new NSQConfig();
     private int connectionRetries = 5;
 
@@ -45,7 +46,7 @@ public class NSQProducer {
         pool = new GenericKeyedObjectPool<>(new ConnectionPoolFactory(config), poolConfig);
     }
 
-    protected Connection getConnection() throws NoConnectionsException {
+    protected NSQConnection getConnection() throws NoConnectionsException {
         int c = 0;
         while (c < connectionRetries) {
             ServerAddress[] serverAddresses = addresses.toArray(new ServerAddress[addresses.size()]);
@@ -83,7 +84,7 @@ public class NSQProducer {
             return;
         }
 
-        Connection c = this.getConnection();
+        NSQConnection c = this.getConnection();
         try {
             NSQCommand command = NSQCommand.instance("MPUB " + topic);
             command.setData(messages);
@@ -108,7 +109,7 @@ public class NSQProducer {
         if (!started) {
             throw new IllegalStateException("Producer must be started before producing messages!");
         }
-        Connection c = getConnection();
+        NSQConnection c = getConnection();
         try {
             NSQCommand command = NSQCommand.instance("PUB " + topic, message);
             NSQFrame frame = c.commandAndWait(command);
@@ -143,6 +144,17 @@ public class NSQProducer {
         return this;
     }
 
+    public NSQProducer setConfig(NSQConfig config) {
+        if (!started) {
+            this.config = config;
+        }
+        return this;
+    }
+
+    protected ExecutorService getExecutor() {
+        return executor;
+    }
+
     /**
      * This is the executor where the callbacks happen.
      * The executer can only changed before the client is started.
@@ -157,18 +169,7 @@ public class NSQProducer {
         return this;
     }
 
-    public NSQProducer setConfig(NSQConfig config) {
-        if (!started) {
-            this.config = config;
-        }
-        return this;
-    }
-
-    protected ExecutorService getExecutor() {
-        return executor;
-    }
-
-    public GenericKeyedObjectPool<ServerAddress, Connection> getPool() {
+    public GenericKeyedObjectPool<ServerAddress, NSQConnection> getPool() {
         return pool;
     }
 
