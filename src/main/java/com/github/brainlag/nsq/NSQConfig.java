@@ -7,6 +7,7 @@ import org.apache.logging.log4j.LogManager;
 
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Optional;
 
 public class NSQConfig {
 
@@ -23,6 +24,7 @@ public class NSQConfig {
     private Compression compression = Compression.NO_COMPRESSION;
     private Integer deflateLevel = null;
     private Integer sampleRate = null;
+    private Optional<Integer> maxInFlight = Optional.empty();
     private String userAgent = null;
     private Integer msgTimeout = null;
     private SslContext sslContext = null;
@@ -60,6 +62,15 @@ public class NSQConfig {
 
     public Integer getOutputBufferSize() {
         return outputBufferSize;
+    }
+
+    public NSQConfig setMaxInFlight(final int maxInFlight) {
+        this.maxInFlight = Optional.of(maxInFlight);
+        return this;
+    }
+
+    public Optional<Integer> getMaxInFlight() {
+        return maxInFlight;
     }
 
     public void setOutputBufferSize(final Integer outputBufferSize) {
@@ -117,7 +128,6 @@ public class NSQConfig {
     public void setMsgTimeout(final Integer msgTimeout) {
         this.msgTimeout = msgTimeout;
     }
-
 
     public SslContext getSslContext() {
         return sslContext;

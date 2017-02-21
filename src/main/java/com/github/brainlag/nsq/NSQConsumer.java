@@ -39,7 +39,7 @@ public class NSQConsumer implements Closeable {
     private final AtomicLong totalMessages = new AtomicLong(0l);
 
     private boolean started = false;
-    private int messagesPerBatch = 200;
+    private int messagesPerBatch;
     private long lookupPeriod = 60 * 1000; // how often to recheck for new nodes (and clean up non responsive nodes)
     private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private Executor executor = Executors.newCachedThreadPool();
@@ -62,7 +62,7 @@ public class NSQConsumer implements Closeable {
         this.config = config;
         this.callback = callback;
         this.errorCallback = errCallback;
-
+        this.messagesPerBatch = config.getMaxInFlight().orElse(200);
     }
 
     public NSQConsumer start() {
