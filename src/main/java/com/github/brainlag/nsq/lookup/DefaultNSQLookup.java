@@ -42,7 +42,7 @@ public class DefaultNSQLookup implements NSQLookup {
                 String topicEncoded = URLEncoder.encode(topic, Charsets.UTF_8.name());
                 JsonNode jsonNode = mapper.readTree(new URL(addr + "/lookup?topic=" + topicEncoded));
                 LogManager.getLogger(this).debug("Server connection information: {}", jsonNode);
-                JsonNode producers = jsonNode.get("data").get("producers");
+                JsonNode producers = jsonNode.findValue("producers");
                 for (JsonNode node : producers) {
                     String host = node.get("broadcast_address").asText();
                     ServerAddress address = new ServerAddress(host, node.get("tcp_port").asInt());
