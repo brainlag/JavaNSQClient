@@ -158,6 +158,7 @@ public class NSQConsumer implements Closeable {
                         throw new IllegalStateException(err);
                     }
                 }
+                connection.close();
             }
         } catch (final TimeoutException e) {
             LogManager.getLogger(this).warn("No clean disconnect", e);
