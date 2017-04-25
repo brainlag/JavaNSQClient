@@ -161,6 +161,11 @@ public class Connection {
         channel.disconnect();
     }
 
+    static void shutdown() {
+        LogManager.getLogger(Connection.class).info("Closing  EventLoopGroup");
+        group.shutdownGracefully();
+    }
+
     public NSQFrame commandAndWait(final NSQCommand command) throws TimeoutException {
         try {
             if (!requests.offer(command, 15, TimeUnit.SECONDS)) {

@@ -145,6 +145,7 @@ public class NSQConsumer implements Closeable {
     public void shutdown() {
         scheduler.shutdown();
         cleanClose();
+        Connection.shutdown();
     }
 
     private void cleanClose() {
