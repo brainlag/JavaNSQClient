@@ -1,14 +1,17 @@
 package com.github.brainlag.nsq;
 
+import com.github.brainlag.nsq.callbacks.ConnectErrorCallback;
 import com.github.brainlag.nsq.callbacks.NSQErrorCallback;
 import com.github.brainlag.nsq.callbacks.NSQMessageCallback;
 import com.github.brainlag.nsq.exceptions.NoConnectionsException;
 import com.github.brainlag.nsq.frames.ErrorFrame;
 import com.github.brainlag.nsq.frames.NSQFrame;
 import com.github.brainlag.nsq.lookup.NSQLookup;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.jmx.Server;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -37,6 +40,7 @@ public class NSQConsumer implements Closeable {
     private volatile long nextTimeout = 0;
     private final Map<ServerAddress, Connection> connections = Maps.newHashMap();
     private final AtomicLong totalMessages = new AtomicLong(0l);
+    private final ConnectErrorCallback connectErrorCallback;
 
     private boolean started = false;
     private int messagesPerBatch;
@@ -56,6 +60,11 @@ public class NSQConsumer implements Closeable {
 
     public NSQConsumer(final NSQLookup lookup, final String topic, final String channel, final NSQMessageCallback callback,
                        final NSQConfig config, final NSQErrorCallback errCallback) {
+        this(lookup, topic, channel, callback, config, errCallback, null);
+    }
+
+    public NSQConsumer(final NSQLookup lookup, final String topic, final String channel, final NSQMessageCallback callback,
+        final NSQConfig config, final NSQErrorCallback errCallback, final ConnectErrorCallback connectErrorCallback) {
         this.lookup = lookup;
         this.topic = topic;
         this.channel = channel;
@@ -63,6 +72,7 @@ public class NSQConsumer implements Closeable {
         this.callback = callback;
         this.errorCallback = errCallback;
         this.messagesPerBatch = config.getMaxInFlight().orElse(200);
+        this.connectErrorCallback = connectErrorCallback;
     }
 
     public NSQConsumer start() {
@@ -180,12 +190,22 @@ public class NSQConsumer implements Closeable {
 
 
     private void connect() {
-        for (final Iterator<Map.Entry<ServerAddress, Connection>> it = connections.entrySet().iterator(); it.hasNext(); ) {
-            Connection cnn = it.next().getValue();
-            if (!cnn.isConnected() || !cnn.isHeartbeatStatusOK()) {
-                //force close
-                cnn.close();
-                it.remove();
+        try {
+            for (final Iterator<Map.Entry<ServerAddress, Connection>> it = connections.entrySet().iterator(); it.hasNext(); ) {
+                Connection cnn = it.next().getValue();
+                if (!cnn.isConnected() || !cnn.isHeartbeatStatusOK()) {
+                    //force close
+                    cnn.close();
+                    it.remove();
+                }
+            }
+        } catch (Exception e) {
+            // very broad intentionally; that way users of the lib can determine which exceptions they care about
+            // and handle them appropriately
+            if (connectErrorCallback != null) {
+                connectErrorCallback.error(e);
+            } else {
+                throw e;
             }
         }
 
@@ -199,18 +219,32 @@ public class NSQConsumer implements Closeable {
             // just log a message and keep moving
             LogManager.getLogger(this).warn("No NSQLookup server connections or topic does not exist.");
         } else {
-            for (final ServerAddress server : Sets.difference(oldAddresses, newAddresses)) {
-                LogManager.getLogger(this).info("Remove connection " + server.toString());
-                connections.get(server).close();
-                connections.remove(server);
-            }
+            try {
+                ImmutableSet<ServerAddress> addressesToRemove = Sets.difference(oldAddresses, newAddresses).immutableCopy();
+                for (final Iterator<ServerAddress> removeIterator = addressesToRemove.iterator(); removeIterator.hasNext(); ) {
+                    ServerAddress oldServer = removeIterator.next();
+                    LogManager.getLogger(this).info("Remove connection " + oldServer.toString());
+                    connections.get(oldServer).close();
+                    connections.remove(oldServer);
+                }
 
-            for (final ServerAddress server : Sets.difference(newAddresses, oldAddresses)) {
-                if (!connections.containsKey(server)) {
-                    final Connection connection = createConnection(server);
-                    if (connection != null) {
-                        connections.put(server, connection);
+                ImmutableSet<ServerAddress> addressesToAdd = Sets.difference(newAddresses, oldAddresses).immutableCopy();
+                for (final Iterator<ServerAddress> addIterator = addressesToAdd.iterator(); addIterator.hasNext(); ) {
+                    ServerAddress server = addIterator.next();
+                    if (!connections.containsKey(server)) {
+                        final Connection connection = createConnection(server);
+                        if (connection != null) {
+                            connections.put(server, connection);
+                        }
                     }
+                }
+            } catch (Exception e) {
+                // very broad intentionally; that way users of the lib can determine which exceptions they care about
+                // and handle them appropriately
+                if (connectErrorCallback != null) {
+                    connectErrorCallback.error(e);
+                } else {
+                    throw e;
                 }
             }
         }
